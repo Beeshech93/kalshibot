@@ -98,7 +98,14 @@ class TelegramBot:
         no_price = f"{kalshi_market.get('no_ask', 'N/A')}¢" if kalshi_market and kalshi_market.get('no_ask') is not None else "N/A"
         time_rem = kalshi_market.get("time_remaining_str", "N/A") if kalshi_market else (sig.time_remaining_str if sig else "N/A")
 
+        # Signal Direction Labeling (ALTO / BAJO / ESPERA)
         sig_type = sig.signal_type if sig else "WAIT"
+        if sig_type == "YES":
+            signal_display = "🟢 ALTO (SUBIDA / YES)"
+        elif sig_type == "NO":
+            signal_display = "🔴 BAJO (BAJADA / NO)"
+        else:
+            signal_display = "🟡 ESPERA (WAIT)"
         conf_str = f"{sig.confidence_score:.1f}% (Puntuación heurística de modelo)" if sig else "0.0%"
         justification = sig.technical_justification if sig else "Evaluando condiciones de mercado."
 
@@ -126,7 +133,7 @@ class TelegramBot:
             f"<b>EMA 50:</b> {ema50}\n"
             f"<b>MACD:</b> {macd}\n"
             f"<b>Volumen:</b> {vol_conf}\n\n"
-            f"<b>SEÑAL:</b> <code>{sig_type}</code>\n\n"
+            f"<b>SEÑAL:</b> <code>{signal_display}</code>\n\n"
             f"<b>Precio YES:</b> {yes_price}\n"
             f"<b>Precio NO:</b> {no_price}\n"
             f"<b>Tiempo restante:</b> {time_rem}\n\n"
@@ -279,9 +286,17 @@ class TelegramBot:
             self.send_message("No hay señales registradas todavía.", target_chat_id=chat_id)
             return
 
+        sig_type = last_sig['signal_type']
+        if sig_type == "YES":
+            sig_lbl = "🟢 ALTO (SUBIDA / YES)"
+        elif sig_type == "NO":
+            sig_lbl = "🔴 BAJO (BAJADA / NO)"
+        else:
+            sig_lbl = "🟡 ESPERA (WAIT)"
+
         msg = (
             f"🎯 <b>Última Señal Registrada:</b>\n\n"
-            f"• <b>Tipo:</b> <code>{last_sig['signal_type']}</code>\n"
+            f"• <b>Dirección / Tipo:</b> <code>{sig_lbl}</code>\n"
             f"• <b>Mercado:</b> {last_sig['market_ticker']}\n"
             f"• <b>BTC al emitir:</b> ${last_sig['btc_price']:,.2f}\n"
             f"• <b>Confianza del modelo:</b> {last_sig['confidence_score']:.1f}%\n"
@@ -328,7 +343,9 @@ class TelegramBot:
         lines = ["📜 <b>Últimas Señales:</b>\n"]
         for s in signals:
             ts = s["timestamp"][:16].replace("T", " ")
-            lines.append(f"• <b>{s['signal_type']}</b> | {s['market_ticker']} | BTC: ${s['btc_price']:,.0f} | Conf: {s['confidence_score']:.0f}% ({ts})")
+            st = s["signal_type"]
+            badge = "🟢 ALTO" if st == "YES" else ("🔴 BAJO" if st == "NO" else "🟡 ESPERA")
+            lines.append(f"• <b>{badge}</b> | {s['market_ticker']} | BTC: ${s['btc_price']:,.0f} | Conf: {s['confidence_score']:.0f}% ({ts})")
 
         self.send_message("\n".join(lines), target_chat_id=chat_id)
 

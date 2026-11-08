@@ -170,7 +170,17 @@ function renderLatestSignal(sig) {
     if (!banner) return;
 
     banner.className = `signal-banner sig-${sig.signal_type}`;
-    document.getElementById('sig-type-tag').textContent = sig.signal_type;
+
+    let label = sig.signal_type;
+    if (sig.signal_type === 'YES') {
+        label = '▲ ALTO (SUBIDA / YES)';
+    } else if (sig.signal_type === 'NO') {
+        label = '▼ BAJO (BAJADA / NO)';
+    } else {
+        label = '● ESPERA (WAIT)';
+    }
+
+    document.getElementById('sig-type-tag').textContent = label;
     document.getElementById('sig-conf-val').textContent = `${sig.confidence_score.toFixed(1)}%`;
     document.getElementById('sig-justification').textContent = sig.technical_justification || 'Sin justificación técnica disponible.';
     document.getElementById('sig-market-target').textContent = sig.market_ticker || 'N/A';
@@ -279,7 +289,16 @@ async function fetchSignals() {
         const tr = document.createElement('tr');
         const timeStr = sig.timestamp.replace('T', ' ').substring(5, 19);
         const btcFmt = '$' + Number(sig.btc_price).toLocaleString(undefined, {maximumFractionDigits: 0});
-        const badgeClass = `badge badge-${sig.signal_type.toLowerCase()}`;
+        
+        let badgeHtml = '';
+        if (sig.signal_type === 'YES') {
+            badgeHtml = '<span class="badge badge-yes">▲ ALTO (YES)</span>';
+        } else if (sig.signal_type === 'NO') {
+            badgeHtml = '<span class="badge badge-no">▼ BAJO (NO)</span>';
+        } else {
+            badgeHtml = '<span class="badge badge-wait">● ESPERA</span>';
+        }
+
         const outcomeBadge = getOutcomeBadge(sig.post_outcome);
 
         tr.innerHTML = `
@@ -287,7 +306,7 @@ async function fetchSignals() {
             <td style="font-family: var(--font-mono);">${timeStr}</td>
             <td style="font-family: var(--font-mono);">${sig.market_ticker}</td>
             <td style="font-family: var(--font-mono);">${btcFmt}</td>
-            <td><span class="${badgeClass}">${sig.signal_type}</span></td>
+            <td>${badgeHtml}</td>
             <td style="font-family: var(--font-mono); font-weight:600;">${sig.confidence_score.toFixed(0)}%</td>
             <td>${outcomeBadge}</td>
             <td style="color: var(--text-muted); font-size: 0.75rem; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${sig.technical_justification}">

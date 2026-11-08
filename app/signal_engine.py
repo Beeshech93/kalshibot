@@ -22,10 +22,12 @@ class SignalDecision:
     reference_price: Optional[float]
     indicators: Dict[str, Any]
     time_remaining_str: str
+    direction_label: str = "ESPERA (NEUTRO)"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "signal_type": self.signal_type,
+            "direction_label": self.direction_label,
             "confidence_score": round(self.confidence_score, 1),
             "technical_justification": self.technical_justification,
             "btc_price": round(self.btc_price, 2),
@@ -199,19 +201,23 @@ class SignalEngine:
 
         # 4. Final Decision
         final_signal = "WAIT"
+        direction_label = "ESPERA (NEUTRO)"
         final_confidence = 0.0
         selected_contract_price = None
 
         if yes_score >= self.min_confidence and yes_score > (no_score + 15.0):
             final_signal = "YES"
+            direction_label = "ALTO (SUBIDA)"
             final_confidence = yes_score
             selected_contract_price = contract_yes_ask
         elif no_score >= self.min_confidence and no_score > (yes_score + 15.0):
             final_signal = "NO"
+            direction_label = "BAJO (BAJADA)"
             final_confidence = no_score
             selected_contract_price = contract_no_ask
         else:
             final_signal = "WAIT"
+            direction_label = "ESPERA (NEUTRO)"
             final_confidence = max(yes_score, no_score)
             selected_contract_price = contract_yes_ask
             justifications.append(f"Señales técnicas mixtas o puntuación inferior al umbral mínimo ({self.min_confidence:.0f}%).")
@@ -220,6 +226,7 @@ class SignalEngine:
 
         return SignalDecision(
             signal_type=final_signal,
+            direction_label=direction_label,
             confidence_score=final_confidence,
             technical_justification=justification_text,
             btc_price=current_btc_price,
