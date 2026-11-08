@@ -285,3 +285,4 @@ async function triggerManualCycle() {
         btn.textContent = '⚡ Analizar Ahora';
     }
 }
+

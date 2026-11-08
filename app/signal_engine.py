@@ -217,3 +217,4 @@ class SignalEngine:
             indicators=ind_15m.to_dict(),
             time_remaining_str=time_rem_str
         )
+

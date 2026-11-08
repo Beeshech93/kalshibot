@@ -101,3 +101,4 @@ alertcondition(trigger_no, title="Alerta SELL (NO)",
 
 alertcondition(wait_condition, title="Alerta WAIT",
                message='{"event": "SIGNAL", "type": "WAIT", "symbol": "{{ticker}}", "price": {{close}}, "time": "{{timenow}}"}')
+

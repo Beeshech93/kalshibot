@@ -269,3 +269,4 @@ Para que **BTC SCALPING AI** se ejecute automáticamente como un servicio en seg
 5. Para configurar alertas webhook:
    - Crea una nueva alerta en TradingView con la condición `Alerta BUY (YES)` o `Alerta SELL (NO)`.
    - El script genera automáticamente payloads en formato JSON listos para ser consumidos por cualquier receptor HTTP webhook.
+

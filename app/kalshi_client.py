@@ -216,3 +216,4 @@ class KalshiClient:
             return round(float(val) * 100.0, 2)
         except (ValueError, TypeError):
             return None
+

@@ -11,6 +11,8 @@ ENV/
 
 # Secrets and environment files
 .env
+*.env
+*.save
 *.pem
 *.key
 
