@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC SCALPING AI — Terminal de Análisis y Predicción Kalshi</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="brand">
+                <span style="font-size: 1.8rem;">⚡</span>
+                <div>
+                    <h1>BTC SCALPING AI</h1>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        Inteligencia Algorítmica para Mercados de Predicción de Bitcoin en Kalshi
+                    </div>
+                </div>
+                <span class="badge-mode">SOLO SEÑALES</span>
+            </div>
+
+            <div class="header-status">
+                <div class="status-pill">
+                    <span class="dot"></span>
+                    <span>SISTEMA ACTIVO</span>
+                </div>
+                <button id="btn-trigger-cycle" class="btn-trigger">⚡ Analizar Ahora</button>
+            </div>
+        </header>
+
+        <!-- Metrics Strip -->
+        <div class="grid-stats">
+            <div class="stat-card">
+                <span class="label">Precio Spot BTC / USDT</span>
+                <span id="btc-live-price" class="value val-btc">$--,---.--</span>
+                <span class="subtext">Binance & Coinbase Aggregated</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">Tasa de Acierto (Win Rate)</span>
+                <span id="stat-winrate" class="value val-yes">0.0%</span>
+                <span class="subtext">Solo señales evaluadas</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">Aciertos / Errores</span>
+                <span class="value">
+                    <span id="stat-wins" style="color: var(--color-yes);">0</span>
+                    <span style="color: var(--text-muted); font-size: 1rem;"> / </span>
+                    <span id="stat-losses" style="color: var(--color-no);">0</span>
+                </span>
+                <span class="subtext">Pendientes: <span id="stat-pending">0</span></span>
+            </div>
+            <div class="stat-card">
+                <span class="label">Señales Emitidas</span>
+                <span id="stat-total-signals" class="value">0</span>
+                <span class="subtext">
+                    YES: <span id="stat-yes-signals">0</span> | NO: <span id="stat-no-signals">0</span> | WAIT: <span id="stat-wait-signals">0</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Latest Confirmed Signal Banner -->
+        <div id="signal-banner" class="signal-banner sig-WAIT">
+            <div class="sig-top">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <span style="font-size: 0.8rem; text-transform: uppercase; font-weight:700;">Última Señal del Sistema:</span>
+                    <span id="sig-type-tag" class="signal-tag">WAIT</span>
+                </div>
+                <div class="signal-conf">
+                    Confianza del Modelo: <span id="sig-conf-val">0.0%</span>
+                </div>
+            </div>
+            <div id="sig-justification" class="signal-desc">
+                Cargando estado analítico del mercado...
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                Contrato Evaluado: <span id="sig-market-target" style="color: var(--color-cyan); font-family: var(--font-mono);">--</span>
+            </div>
+        </div>
+
+        <!-- Main Chart & Sidebar Section -->
+        <div class="grid-main">
+            <!-- Left: Price Chart & Technicals -->
+            <div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📈 Gráfico de Velas y Medias Móviles (15m)</h2>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Velas Cerradas • EMA 9 / 21 / 50</span>
+                    </div>
+                    <div style="height: 340px; position: relative;">
+                        <canvas id="btcPriceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Technical Indicators Panel -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🔬 Panel de Indicadores Técnicos (15m)</h2>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Estructura y Momentum</span>
+                    </div>
+                    <div class="indicators-grid">
+                        <div class="indicator-item">
+                            <div class="title">EMA 9</div>
+                            <div id="ind-ema9" class="val" style="color: var(--color-cyan);">$0</div>
+                        </div>
+                        <div class="indicator-item">
+                            <div class="title">EMA 21</div>
+                            <div id="ind-ema21" class="val" style="color: var(--color-wait);">$0</div>
+                        </div>
+                        <div class="indicator-item">
+                            <div class="title">EMA 50</div>
+                            <div id="ind-ema50" class="val" style="color: var(--color-no);">$0</div>
+                        </div>
+                        <div class="indicator-item">
+                            <div class="title">RSI (14)</div>
+                            <div id="ind-rsi" class="val">50.0</div>
+                        </div>
+                        <div class="indicator-item">
+                            <div class="title">MACD Hist (12,26,9)</div>
+                            <div id="ind-macd" class="val">0.00</div>
+                        </div>
+                        <div class="indicator-item">
+                            <div class="title">Volumen (SMA 20)</div>
+                            <div id="ind-vol-conf" class="val">Normal</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Kalshi Market Contract & System Logs -->
+            <div>
+                <!-- Kalshi Contract Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🏛️ Contrato Kalshi Activo</h2>
+                        <span id="mkt-status" class="badge badge-yes">ACTIVE</span>
+                    </div>
+
+                    <div class="contract-box">
+                        <div id="mkt-title" class="contract-title">Consultando Kalshi...</div>
+                        <div id="mkt-ticker" class="contract-ticker">KXBTC15M-XXXX</div>
+
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+                            Strike Objetivo: <strong id="mkt-strike" style="color: var(--text-main);">$--</strong>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+                            Tiempo Restante: <strong id="mkt-time-rem" style="color: var(--color-cyan);">--</strong>
+                        </div>
+
+                        <div class="contract-prices">
+                            <div class="price-pill price-yes">
+                                <div style="font-size: 0.7rem; text-transform:uppercase;">YES Ask</div>
+                                <div id="mkt-yes-price" style="font-size: 1.2rem;">--¢</div>
+                            </div>
+                            <div class="price-pill price-no">
+                                <div style="font-size: 0.7rem; text-transform:uppercase;">NO Ask</div>
+                                <div id="mkt-no-price" style="font-size: 1.2rem;">--¢</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+                        Los contratos de Kalshi liquidan automáticamente al cumplirse la hora de cierre sobre el índice oficial BRTI de CF Benchmarks.
+                    </div>
+                </div>
+
+                <!-- Bot Live Activity Logs -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📜 Actividad del Sistema</h2>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">Eventos en vivo</span>
+                    </div>
+                    <div id="logs-container" class="logs-container">
+                        <div class="log-entry">
+                            <span class="log-time">[--:--:--]</span>
+                            <span class="log-INFO">[INFO]</span>
+                            <span>Inicializando terminal web...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Full Table: Signals History -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📑 Historial de Señales Emitidas</h2>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">Registro inmutable en SQLite</span>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha / Hora (UTC)</th>
+                            <th>Mercado Kalshi</th>
+                            <th>BTC Spot</th>
+                            <th>Señal</th>
+                            <th>Confianza</th>
+                            <th>Resultado</th>
+                            <th>Justificación Técnica</th>
+                        </tr>
+                    </thead>
+                    <tbody id="signals-tbody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                Cargando historial de señales...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

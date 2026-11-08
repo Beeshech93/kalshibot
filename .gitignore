@@ -1,0 +1,30 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Secrets and environment files
+.env
+*.pem
+*.key
+
+# Data & logs
+data/*.db
+data/*.sqlite
+logs/*.log
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Pytest
+.pytest_cache/

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.btcscalping.ai</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/wisly/BTC-Scalping-Bot</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/wisly/BTC-Scalping-Bot/venv/bin/python</string>
+        <string>/Users/wisly/BTC-Scalping-Bot/run.py</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/wisly/BTC-Scalping-Bot/logs/service_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/wisly/BTC-Scalping-Bot/logs/service_stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+</dict>
+</plist>

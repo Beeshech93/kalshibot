@@ -1,0 +1,103 @@
+//@version=6
+indicator("BTC SCALPING AI — Kalshi Signals Engine", overlay=true, precision=2)
+
+// =============================================================================
+// BTC SCALPING AI — PINE SCRIPT v6 INDICATOR & WEBHOOK ALERTS
+// Multi-Indicator Scalping Suite: EMA (9, 21, 50), RSI (14), MACD (12, 26, 9),
+// Volume Confirmation & Dynamic Signals (BUY / YES, SELL / NO, WAIT)
+// =============================================================================
+
+// --- 1. PARAMETERS & INPUTS ---
+grp_ema = "Medias Móviles Exponenciales (EMA)"
+len_ema_fast = input.int(9, title="EMA Rápida", minval=1, group=grp_ema)
+len_ema_med  = input.int(21, title="EMA Media", minval=1, group=grp_ema)
+len_ema_slow = input.int(50, title="EMA Lenta", minval=1, group=grp_ema)
+
+grp_rsi = "Relative Strength Index (RSI)"
+len_rsi      = input.int(14, title="Longitud RSI", minval=1, group=grp_rsi)
+rsi_ob       = input.float(70.0, title="Nivel Sobrecompra", group=grp_rsi)
+rsi_os       = input.float(30.0, title="Nivel Sobreventa", group=grp_rsi)
+rsi_bull_min = input.float(52.0, title="Filtro Momentum Alcista", group=grp_rsi)
+rsi_bear_max = input.float(48.0, title="Filtro Momentum Bajista", group=grp_rsi)
+
+grp_macd = "MACD (12, 26, 9)"
+fast_len = input.int(12, title="Rápida", group=grp_macd)
+slow_len = input.int(26, title="Lenta", group=grp_macd)
+sig_len  = input.int(9, title="Señal", group=grp_macd)
+
+grp_vol = "Filtro de Volumen"
+len_vol_sma   = input.int(20, title="Media Móvil de Volumen", group=grp_vol)
+vol_threshold = input.float(1.0, title="Multiplicador Mínimo Volumen", group=grp_vol)
+
+// --- 2. CALCULATIONS ---
+// A. EMAs
+ema9  = ta.ema(close, len_ema_fast)
+ema21 = ta.ema(close, len_ema_med)
+ema50 = ta.ema(close, len_ema_slow)
+
+// B. RSI
+rsi = ta.rsi(close, len_rsi)
+
+// C. MACD
+[macdLine, signalLine, histLine] = ta.macd(close, fast_len, slow_len, sig_len)
+
+// D. Volume
+vol_avg = ta.sma(volume, len_vol_sma)
+vol_confirmed = volume >= (vol_avg * vol_threshold)
+vol_abnormal  = volume >= (vol_avg * 2.0)
+
+// --- 3. TREND & MOMENTUM CONDITIONS (CLOSED BARS ONLY) ---
+// Using closed bar conditions via barstate.isconfirmed to avoid repainting
+trend_bullish = (ema9 > ema21) and (ema21 > ema50) and (close > ema9)
+trend_bearish = (ema9 < ema21) and (ema21 < ema50) and (close < ema9)
+
+macd_bullish = (histLine > 0) and (macdLine > signalLine)
+macd_bearish = (histLine < 0) and (macdLine < signalLine)
+
+rsi_bullish = (rsi >= rsi_bull_min) and (rsi < rsi_ob)
+rsi_bearish = (rsi <= rsi_bear_max) and (rsi > rsi_os)
+
+// --- 4. SIGNAL GENERATION ---
+// BUY / YES condition
+buy_yes_condition = trend_bullish and macd_bullish and rsi_bullish and vol_confirmed and barstate.isconfirmed
+
+// SELL / NO condition
+sell_no_condition = trend_bearish and macd_bearish and rsi_bearish and vol_confirmed and barstate.isconfirmed
+
+// WAIT condition (Conflicted momentum or low volume)
+wait_condition = not buy_yes_condition and not sell_no_condition and barstate.isconfirmed
+
+// Trigger on signal change only
+var int last_signal = 0 // 1: YES, -1: NO, 0: WAIT
+bool trigger_yes  = buy_yes_condition and (last_signal != 1)
+bool trigger_no   = sell_no_condition and (last_signal != -1)
+
+if trigger_yes
+    last_signal := 1
+if trigger_no
+    last_signal := -1
+
+// --- 5. PLOTTING ---
+plot(ema9,  title="EMA 9",  color=color.aqua,   linewidth=2)
+plot(ema21, title="EMA 21", color=color.yellow, linewidth=2)
+plot(ema50, title="EMA 50", color=color.red,    linewidth=2)
+
+// Plot Shapes
+plotshape(trigger_yes, title="Señal BUY (YES)", style=shape.labelup, location=location.belowbar,
+          color=color.green, text="YES", textcolor=color.black, size=size.normal)
+
+plotshape(trigger_no, title="Señal SELL (NO)", style=shape.labeldown, location=location.abovebar,
+          color=color.red, text="NO", textcolor=color.white, size=size.normal)
+
+// Highlight Abnormal Volume
+barcolor(vol_abnormal ? color.fuchsia : na, title="Volumen Anormal (>2x)")
+
+// --- 6. WEBHOOK ALERTS (JSON FORMAT FOR BTC SCALPING AI INTEGRATION) ---
+alertcondition(trigger_yes, title="Alerta BUY (YES)",
+               message='{"event": "SIGNAL", "type": "YES", "symbol": "{{ticker}}", "price": {{close}}, "rsi": ' + str.tostring(rsi) + ', "time": "{{timenow}}"}')
+
+alertcondition(trigger_no, title="Alerta SELL (NO)",
+               message='{"event": "SIGNAL", "type": "NO", "symbol": "{{ticker}}", "price": {{close}}, "rsi": ' + str.tostring(rsi) + ', "time": "{{timenow}}"}')
+
+alertcondition(wait_condition, title="Alerta WAIT",
+               message='{"event": "SIGNAL", "type": "WAIT", "symbol": "{{ticker}}", "price": {{close}}, "time": "{{timenow}}"}')
