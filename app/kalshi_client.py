@@ -63,12 +63,23 @@ class KalshiClient:
             return data["series"]
         return None
 
-    def get_markets_for_series(self, series_ticker: str) -> List[Dict[str, Any]]:
-        """Fetches raw markets list for a series ticker."""
-        params = {"series_ticker": series_ticker, "limit": 100}
+    def get_markets_for_series(self, series_ticker: str, status: Optional[str] = "open") -> List[Dict[str, Any]]:
+        """Fetches raw markets list for a series ticker, prioritizing open/active markets."""
+        params: Dict[str, Any] = {"series_ticker": series_ticker, "limit": 50}
+        if status:
+            params["status"] = status
+
         data = self._request_with_retry("GET", "/markets", params=params)
-        if data and "markets" in data:
+        if data and "markets" in data and len(data["markets"]) > 0:
             return data["markets"]
+
+        # Fallback without status filter if nothing returned
+        if status:
+            fallback_params = {"series_ticker": series_ticker, "limit": 50}
+            fallback_data = self._request_with_retry("GET", "/markets", params=fallback_params)
+            if fallback_data and "markets" in fallback_data:
+                return fallback_data["markets"]
+
         return []
 
     def get_market_orderbook(self, ticker: str, depth: int = 5) -> Optional[Dict[str, Any]]:
