@@ -67,7 +67,7 @@ class Settings:
 
     # Dashboard
     dashboard_host: str = os.getenv("DASHBOARD_HOST", "127.0.0.1")
-    dashboard_port: int = int(os.getenv("DASHBOARD_PORT", "5000"))
+    dashboard_port: int = int(os.getenv("DASHBOARD_PORT", "8080"))
     dashboard_debug: bool = _get_bool("DASHBOARD_DEBUG", False)
 
     # Logging

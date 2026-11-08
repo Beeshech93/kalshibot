@@ -210,7 +210,7 @@ MODE=SOLO_SEÑALES
 ```bash
 ./venv/bin/python run.py
 ```
-Abre tu navegador en: **`http://127.0.0.1:5000`**
+Abre tu navegador en: **`http://127.0.0.1:8080`**
 
 #### B. Ejecutar Solo el Bot de Señales y Telegram (Headless):
 ```bash
