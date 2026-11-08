@@ -44,6 +44,7 @@ class AnalysisScheduler:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._last_run_timestamp: Optional[datetime] = None
+        self._sent_6m_contracts = set()
 
     def start(self) -> None:
         """Starts the scheduler thread."""
@@ -61,9 +62,10 @@ class AnalysisScheduler:
             self._thread.join(timeout=3)
         logger.info("Scheduler stopped.")
 
-    def execute_cycle(self, force_broadcast: bool = False) -> None:
+    def execute_cycle(self, force_broadcast: bool = False, is_6m_trigger: bool = False) -> None:
         """Executes a single end-to-end analysis and signal generation cycle."""
-        logger.info("--- Starting BTC Scalping Analysis Cycle ---")
+        prefix = "⚡ [SCALPING 6 MINUTOS] " if is_6m_trigger else ""
+        logger.info(f"--- {prefix}Starting BTC Scalping Analysis Cycle ---")
         try:
             # 1. Fetch current live BTC price
             btc_price = self.market_data.get_current_btc_price()
@@ -104,57 +106,77 @@ class AnalysisScheduler:
             # 6. Check duplicate signal prevention
             mkt_ticker = decision.market_ticker
             is_duplicate = False
-            if mkt_ticker and mkt_ticker != "N/A":
+            if mkt_ticker and mkt_ticker != "N/A" and not is_6m_trigger:
                 is_duplicate = self.db.has_recent_signal(mkt_ticker, within_minutes=self.settings.analysis_interval_minutes - 1)
 
             # 7. Store signal in Database
-            signal_id = None
-            if not is_duplicate:
-                signal_id = self.db.insert_signal(
-                    market_ticker=decision.market_ticker,
-                    btc_price=decision.btc_price,
-                    contract_price=decision.contract_price,
-                    signal_type=decision.signal_type,
-                    indicators=decision.indicators,
-                    confidence_score=decision.confidence_score,
-                    reference_price=decision.reference_price,
-                    technical_justification=decision.technical_justification
-                )
-            else:
-                logger.info(f"Duplicate signal suppressed for {mkt_ticker} (already recorded within interval).")
+            signal_id = self.db.insert_signal(
+                market_ticker=decision.market_ticker,
+                btc_price=decision.btc_price,
+                contract_price=decision.contract_price,
+                signal_type=decision.signal_type,
+                indicators=decision.indicators,
+                confidence_score=decision.confidence_score,
+                reference_price=decision.reference_price,
+                technical_justification=decision.technical_justification
+            )
 
             # 8. Evaluate past signals
             self.performance_tracker.evaluate_settled_signals(btc_price)
 
             # 9. Send Telegram Broadcast
-            if not is_duplicate or force_broadcast:
+            if not is_duplicate or force_broadcast or is_6m_trigger:
                 self.telegram_bot.broadcast_signal_if_new(
                     signal_decision=decision,
                     kalshi_market=kalshi_market,
                     indicators=ind_15m.to_dict(),
-                    force=force_broadcast
+                    force=force_broadcast or is_6m_trigger
                 )
 
             self._last_run_timestamp = datetime.now(timezone.utc)
-            self.db.log_event("INFO", "Scheduler", f"Ciclo completado. Señal: {decision.signal_type} ({decision.confidence_score:.1f}%)")
-            logger.info(f"--- Analysis Cycle Complete: Signal={decision.signal_type} ({decision.confidence_score:.1f}%) ---")
+            self.db.log_event("INFO", "Scheduler", f"{prefix}Ciclo completado. Señal: {decision.signal_type} ({decision.confidence_score:.1f}%)")
+            logger.info(f"--- {prefix}Analysis Cycle Complete: Signal={decision.signal_type} ({decision.confidence_score:.1f}%) ---")
 
         except Exception as e:
             logger.exception(f"Unexpected error during analysis cycle: {e}")
             self.db.log_event("ERROR", "Scheduler", f"Error en ciclo: {str(e)}")
 
     def _run_loop(self) -> None:
-        """Loop running every analysis_interval_minutes."""
-        # Run first cycle immediately
+        """Continuous monitor loop with 6-minute window trigger."""
+        # Initial run on start
         self.execute_cycle(force_broadcast=True)
 
-        interval_sec = self.settings.analysis_interval_minutes * 60
+        scan_interval = max(5, self.settings.scan_interval_seconds)
+        window_seconds = self.settings.signal_window_minutes * 60  # e.g., 360 seconds (6 minutes)
+
+        logger.info(f"Monitor loop active. Checking every {scan_interval}s for the {self.settings.signal_window_minutes}-minute scalping window.")
+
         while self._running:
-            # Sleep in small slices to allow responsive stop
-            for _ in range(interval_sec):
+            try:
+                # Inspect active contract time
+                kalshi_market, _ = self.kalshi.find_active_btc_market()
+                if kalshi_market:
+                    ticker = kalshi_market.get("ticker")
+                    sec_rem = kalshi_market.get("seconds_remaining", 0)
+
+                    # Check if contract has entered the last 6 minutes (60s to window_seconds)
+                    if 60 <= sec_rem <= window_seconds:
+                        if ticker and ticker not in self._sent_6m_contracts:
+                            logger.info(f"⚡ Entering last {self.settings.signal_window_minutes}m window for {ticker} ({sec_rem}s remaining). Triggering scalping signal!")
+                            self._sent_6m_contracts.add(ticker)
+                            self.execute_cycle(force_broadcast=True, is_6m_trigger=True)
+
+                # Periodic fallback check (if 15 minutes have elapsed since last cycle)
+                if self._last_run_timestamp:
+                    elapsed = (datetime.now(timezone.utc) - self._last_run_timestamp).total_seconds()
+                    if elapsed >= (self.settings.analysis_interval_minutes * 60):
+                        self.execute_cycle(force_broadcast=False)
+
+            except Exception as e:
+                logger.error(f"Error in scheduler monitor loop: {e}")
+
+            # Sleep in 1-second ticks for clean shutdown
+            for _ in range(scan_interval):
                 if not self._running:
                     break
                 time.sleep(1)
-
-            if self._running:
-                self.execute_cycle(force_broadcast=False)

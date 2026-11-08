@@ -57,6 +57,8 @@ class Settings:
 
     # Core Parameters
     analysis_interval_minutes: int = int(os.getenv("ANALYSIS_INTERVAL_MINUTES", "15"))
+    signal_window_minutes: int = int(os.getenv("SIGNAL_WINDOW_MINUTES", "6"))
+    scan_interval_seconds: int = int(os.getenv("SCAN_INTERVAL_SECONDS", "15"))
     min_confidence_score: int = int(os.getenv("MIN_CONFIDENCE_SCORE", "60"))
     mode: str = os.getenv("MODE", "SOLO_SEÑALES")
 

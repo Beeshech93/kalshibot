@@ -83,12 +83,12 @@ class SignalEngine:
             contract_no_ask = kalshi_market.get("no_ask")
             sec_rem = kalshi_market.get("seconds_remaining", 0)
 
-            # Contract time sanity check (less than 90 seconds is too close for a scalping entry)
-            if sec_rem > 0 and sec_rem < 90:
+            # Contract time sanity check (less than 60 seconds is too close for execution)
+            if sec_rem > 0 and sec_rem < 60:
                 return SignalDecision(
                     signal_type="WAIT",
                     confidence_score=25.0,
-                    technical_justification=f"Tiempo restante crítico ({sec_rem}s). Contrato próximo a liquidación; riesgo excesivo.",
+                    technical_justification=f"Tiempo restante crítico ({sec_rem}s < 1m). Contrato en liquidación; fuera de ventana operativa.",
                     btc_price=current_btc_price,
                     market_ticker=market_ticker,
                     contract_price=contract_yes_ask,
@@ -171,15 +171,27 @@ class SignalEngine:
         else:
             justifications.append("15m: Volumen bajo / sin confirmación institucional.")
 
-        # E. Relative Strike comparison (if available)
+        # E. Relative Strike comparison & 6-Minute Window Scalping Rules
+        is_in_6m_window = False
+        if kalshi_market and kalshi_market.get("seconds_remaining"):
+            sec = kalshi_market["seconds_remaining"]
+            if 60 <= sec <= 360:
+                is_in_6m_window = True
+                justifications.append(f"⚡ [VENTANA 6 MINUTOS] Contrato en fase decisiva ({time_rem_str} restantes).")
+
         if ref_strike and ref_strike > 0:
-            diff_pct = ((current_btc_price - ref_strike) / ref_strike) * 100.0
-            if diff_pct > 0.05 and yes_score > no_score:
-                yes_score += 5.0
-                justifications.append(f"Spot BTC (${current_btc_price:,.2f}) se encuentra por encima del Strike (${ref_strike:,.2f}).")
-            elif diff_pct < -0.05 and no_score > yes_score:
-                no_score += 5.0
-                justifications.append(f"Spot BTC (${current_btc_price:,.2f}) se encuentra por debajo del Strike (${ref_strike:,.2f}).")
+            diff = current_btc_price - ref_strike
+            diff_pct = (diff / ref_strike) * 100.0
+            
+            # Amplified weight inside the last 6 minutes
+            bonus_weight = 15.0 if is_in_6m_window else 5.0
+            
+            if diff > 0:
+                yes_score += bonus_weight
+                justifications.append(f"Spot BTC (${current_btc_price:,.2f}) > TO BEAT (${ref_strike:,.2f}) [+{diff:.2f}$]")
+            else:
+                no_score += bonus_weight
+                justifications.append(f"Spot BTC (${current_btc_price:,.2f}) < TO BEAT (${ref_strike:,.2f}) [{diff:.2f}$]")
 
         # Cap scores between 0 and 100
         yes_score = min(100.0, max(0.0, yes_score))

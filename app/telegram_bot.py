@@ -102,13 +102,23 @@ class TelegramBot:
         conf_str = f"{sig.confidence_score:.1f}% (Puntuación heurística de modelo)" if sig else "0.0%"
         justification = sig.technical_justification if sig else "Evaluando condiciones de mercado."
 
+        # Check if inside 6-minute window
+        sec_rem = kalshi_market.get("seconds_remaining", 0) if kalshi_market else 0
+        window_badge = ""
+        if 0 < sec_rem <= 360:
+            window_badge = "⚡ <b>VENTANA SCALPING: ÚLTIMOS 6 MINUTOS</b> ⏳\n\n"
+
+        to_beat_str = f"${kalshi_market['strike_price']:,.2f}" if kalshi_market and kalshi_market.get("strike_price") else "N/A"
+
         # Plain text adhering to exact specification
         report = (
+            f"{window_badge}"
             f"<b>BTC SCALPING AI</b>\n\n"
             f"<b>Mercado:</b> BTC / USDT\n"
             f"<b>Plataforma:</b> KALSHI\n"
-            f"<b>Contrato:</b> {mkt_ticker}\n\n"
-            f"<b>Precio BTC:</b> {btc_price_str}\n"
+            f"<b>Contrato:</b> {mkt_ticker}\n"
+            f"<b>TO BEAT (Strike):</b> {to_beat_str}\n\n"
+            f"<b>Precio BTC (NOW):</b> {btc_price_str}\n"
             f"<b>Tendencia:</b> {trend}\n"
             f"<b>RSI:</b> {rsi}\n"
             f"<b>EMA 9:</b> {ema9}\n"
