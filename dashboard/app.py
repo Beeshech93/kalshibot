@@ -41,7 +41,10 @@ def index():
 @app.route("/api/overview")
 def api_overview():
     """Returns aggregated state for quick UI refresh."""
-    btc_price = market_data.get_current_btc_price()
+    btc_price = market_data.get_current_btc_price() or 0.0
+    # Auto-evaluate any settled pending signals against official Kalshi results
+    perf_tracker.evaluate_settled_signals(btc_price, kalshi)
+
     latest_sig = db.get_latest_signal()
     active_mkt, series_used = kalshi.find_active_btc_market()
     stats = perf_tracker.calculate_stats().to_dict()
@@ -104,6 +107,8 @@ def api_signals():
 @app.route("/api/performance")
 def api_performance():
     """Returns performance breakdown."""
+    btc_price = market_data.get_current_btc_price() or 0.0
+    perf_tracker.evaluate_settled_signals(btc_price, kalshi)
     stats = perf_tracker.calculate_stats().to_dict()
     return jsonify(stats)
 

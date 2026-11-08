@@ -100,26 +100,48 @@ class PerformanceTracker:
                 win_rate_percent=win_rate
             )
 
-    def evaluate_settled_signals(self, current_btc_price: float) -> int:
-        """Evaluates pending signals against current market data or expired time."""
+    def evaluate_settled_signals(self, current_btc_price: float = 0.0, kalshi_client=None) -> int:
+        """Evaluates pending signals against official Kalshi settlement outcomes."""
         pending = self.db.get_pending_signals()
         evaluated_count = 0
 
         for sig in pending:
             market_ticker = sig["market_ticker"]
-            market = self.db.get_latest_market()
-            # If the market has an expiration or strike
-            strike = sig["reference_price"]
             sig_type = sig["signal_type"]
             sig_id = sig["id"]
+            ref_strike = sig["reference_price"]
 
-            # If contract has reference strike and current price
-            if strike and strike > 0:
-                # Let's check if the market time has passed
-                # In binary prediction: YES wins if final price >= strike; NO wins if final price < strike
-                # Only evaluate if marked as expired or past target time
-                # We can do evaluation when market closes
-                pass
+            if not market_ticker or market_ticker == "N/A":
+                continue
+
+            # Query official settlement from Kalshi if client provided
+            res = None
+            if kalshi_client:
+                try:
+                    res = kalshi_client.get_market_result(market_ticker)
+                except Exception as e:
+                    logger.debug(f"Error querying market result for {market_ticker}: {e}")
+
+            if res and res.get("result"):
+                kalshi_outcome = res["result"].upper()  # 'YES' or 'NO'
+                exp_price = res.get("expiration_value")
+
+                if sig_type == kalshi_outcome:
+                    outcome = "WIN"
+                    notes = f"Acierto: Señal {sig_type} coincide con liquidación oficial Kalshi ({kalshi_outcome}). Strike: {ref_strike}"
+                else:
+                    outcome = "LOSS"
+                    notes = f"Error: Señal {sig_type} difiere de liquidación oficial Kalshi ({kalshi_outcome}). Strike: {ref_strike}"
+
+                self.db.update_signal_outcome(
+                    signal_id=sig_id,
+                    outcome=outcome,
+                    final_btc_price=exp_price or current_btc_price,
+                    kalshi_result=kalshi_outcome,
+                    notes=notes
+                )
+                evaluated_count += 1
+                logger.info(f"Signal #{sig_id} on {market_ticker} resolved: {outcome} ({notes})")
 
         return evaluated_count
 

@@ -79,6 +79,27 @@ class KalshiClient:
             return data["orderbook"]
         return None
 
+    def get_market_result(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """Queries the official settlement outcome of a finalized Kalshi market."""
+        data = self._request_with_retry("GET", f"/markets/{ticker}")
+        if not data or "market" not in data:
+            return None
+
+        m = data["market"]
+        status = m.get("status", "").lower()
+        result = m.get("result", "").lower()
+        exp_val = m.get("expiration_value")
+
+        if status in ("finalized", "closed", "determined") and result in ("yes", "no"):
+            return {
+                "ticker": ticker,
+                "status": status,
+                "result": result.upper(),
+                "expiration_value": float(exp_val) if exp_val else None,
+                "floor_strike": m.get("floor_strike")
+            }
+        return None
+
     def find_active_btc_market(self) -> Tuple[Optional[Dict[str, Any]], str]:
         """Discovers the best active BTC market by checking the target series and fallbacks.
 

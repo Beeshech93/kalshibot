@@ -122,7 +122,7 @@ class AnalysisScheduler:
             )
 
             # 8. Evaluate past signals
-            self.performance_tracker.evaluate_settled_signals(btc_price)
+            self.performance_tracker.evaluate_settled_signals(btc_price, self.kalshi)
 
             # 9. Send Telegram Broadcast
             if not is_duplicate or force_broadcast or is_6m_trigger:
