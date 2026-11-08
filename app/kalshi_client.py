@@ -177,13 +177,16 @@ class KalshiClient:
                     seconds_remaining = max(0, int(diff))
                     mins = seconds_remaining // 60
                     secs = seconds_remaining % 60
-                    time_remaining_str = f"{mins}m {secs}s"
+                    time_remaining_str = f"{mins:02d}:{secs:02d}"
                 except Exception as e:
                     logger.debug(f"Could not parse expiration time {close_time_str}: {e}")
 
             rules = raw.get("rules_primary", "")
             if raw.get("rules_secondary"):
                 rules += " | " + raw.get("rules_secondary")
+
+            subtitle = raw.get("yes_sub_title", "")
+            target_str = subtitle.replace("Target Price:", "").replace("Target price:", "").strip()
 
             return {
                 "ticker": ticker,
@@ -196,6 +199,7 @@ class KalshiClient:
                 "no_ask": no_ask,
                 "last_price": last_price,
                 "strike_price": float(strike_price) if strike_price is not None else None,
+                "to_beat_str": target_str if target_str else (f"${float(strike_price):,.2f}" if strike_price else "TBD"),
                 "close_time": close_time_str,
                 "seconds_remaining": seconds_remaining,
                 "time_remaining_str": time_remaining_str,

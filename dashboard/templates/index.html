@@ -140,24 +140,35 @@
                     </div>
 
                     <div class="contract-box">
-                        <div id="mkt-title" class="contract-title">Consultando Kalshi...</div>
+                        <div id="mkt-title" class="contract-title">BTC 15 min</div>
                         <div id="mkt-ticker" class="contract-ticker">KXBTC15M-XXXX</div>
 
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
-                            Strike Objetivo: <strong id="mkt-strike" style="color: var(--text-main);">$--</strong>
+                        <!-- Kalshi Sync: TO BEAT vs NOW -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; background: rgba(0,0,0,0.25); padding: 10px; border-radius: 8px;">
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">TO BEAT (Strike)</div>
+                                <div id="mkt-to-beat" style="font-size: 1.25rem; font-weight: 700; font-family: var(--font-mono); color: var(--text-main);">$75,739.90</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">NOW (Spot USD)</div>
+                                <div id="mkt-now-price" style="font-size: 1.25rem; font-weight: 700; font-family: var(--font-mono); color: var(--color-yes);">$75,744.77</div>
+                                <div id="mkt-diff-badge" style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--color-yes);">+$4.87 (+0.006%)</div>
+                            </div>
                         </div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
-                            Tiempo Restante: <strong id="mkt-time-rem" style="color: var(--color-cyan);">--</strong>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+                            <span>Tiempo Restante:</span>
+                            <span id="mkt-time-rem" style="font-size: 1.1rem; font-weight: 700; font-family: var(--font-mono); color: var(--color-btc);">--:-- ⏳</span>
                         </div>
 
                         <div class="contract-prices">
                             <div class="price-pill price-yes">
-                                <div style="font-size: 0.7rem; text-transform:uppercase;">YES Ask</div>
-                                <div id="mkt-yes-price" style="font-size: 1.2rem;">--¢</div>
+                                <div style="font-size: 0.7rem; text-transform:uppercase;">YES Chance / Ask</div>
+                                <div id="mkt-yes-price" style="font-size: 1.25rem;">--¢</div>
                             </div>
                             <div class="price-pill price-no">
-                                <div style="font-size: 0.7rem; text-transform:uppercase;">NO Ask</div>
-                                <div id="mkt-no-price" style="font-size: 1.2rem;">--¢</div>
+                                <div style="font-size: 0.7rem; text-transform:uppercase;">NO Chance / Ask</div>
+                                <div id="mkt-no-price" style="font-size: 1.25rem;">--¢</div>
                             </div>
                         </div>
                     </div>

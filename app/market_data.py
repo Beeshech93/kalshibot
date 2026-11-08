@@ -14,9 +14,10 @@ logger = logging.getLogger("MarketData")
 class MarketDataManager:
     """Fetches real-time BTC/USDT price and multi-timeframe closed candles."""
 
+    COINBASE_URL = "https://api.exchange.coinbase.com/products/BTC-USD"
+    KRAKEN_URL = "https://api.kraken.com/0/public"
     BINANCE_URL = "https://api.binance.com/api/v3"
     BINANCE_FALLBACK_URL = "https://data-api.binance.vision/api/v3"
-    COINBASE_URL = "https://api.exchange.coinbase.com/products/BTC-USD"
 
     TIMEFRAME_MAP_BINANCE = {
         "1m": "1m",
@@ -39,8 +40,35 @@ class MarketDataManager:
         })
 
     def get_current_btc_price(self) -> Optional[float]:
-        """Fetches the current live spot price of BTC/USDT."""
-        # Try Binance Primary
+        """Fetches the current live spot price of BTC/USD.
+        Prioritizes Coinbase and Kraken because Kalshi contracts settle
+        against the CF Benchmarks BRTI index derived from USD exchanges.
+        """
+        # 1. Try Coinbase (Constituent of CF Benchmarks BRTI)
+        try:
+            resp = self.session.get(f"{self.COINBASE_URL}/ticker", timeout=4)
+            if resp.status_code == 200:
+                data = resp.json()
+                price = float(data.get("price", 0.0))
+                if price > 0:
+                    return price
+        except Exception as e:
+            logger.debug(f"Coinbase spot price attempt failed: {e}")
+
+        # 2. Try Kraken (Constituent of CF Benchmarks BRTI)
+        try:
+            resp = self.session.get(f"{self.KRAKEN_URL}/Ticker?pair=XBTUSD", timeout=4)
+            if resp.status_code == 200:
+                data = resp.json()
+                result = data.get("result", {})
+                for pair_key, ticker_info in result.items():
+                    c_price = float(ticker_info.get("c", [0])[0])
+                    if c_price > 0:
+                        return c_price
+        except Exception as e:
+            logger.debug(f"Kraken spot price attempt failed: {e}")
+
+        # 3. Fallback to Binance
         for base in [self.BINANCE_URL, self.BINANCE_FALLBACK_URL]:
             try:
                 resp = self.session.get(f"{base}/ticker/price?symbol=BTCUSDT", timeout=4)
@@ -52,17 +80,6 @@ class MarketDataManager:
             except Exception as e:
                 logger.debug(f"Binance spot price attempt failed: {e}")
 
-        # Fallback to Coinbase
-        try:
-            resp = self.session.get(f"{self.COINBASE_URL}/ticker", timeout=4)
-            if resp.status_code == 200:
-                data = resp.json()
-                price = float(data.get("price", 0.0))
-                if price > 0:
-                    return price
-        except Exception as e:
-            logger.warning(f"Coinbase spot price attempt failed: {e}")
-
         logger.error("All spot price sources failed.")
         return None
 
@@ -70,9 +87,9 @@ class MarketDataManager:
         """Fetches OHLCV candles for the given timeframe (1m, 5m, 15m).
         Ensures strictly closed candles are returned when closed_only=True.
         """
-        candles = self._fetch_binance_candles(timeframe, limit=limit + (1 if closed_only else 0))
+        candles = self._fetch_coinbase_candles(timeframe, limit=limit + (1 if closed_only else 0))
         if not candles:
-            candles = self._fetch_coinbase_candles(timeframe, limit=limit + (1 if closed_only else 0))
+            candles = self._fetch_binance_candles(timeframe, limit=limit + (1 if closed_only else 0))
 
         if not candles:
             logger.error(f"Failed to fetch {timeframe} candles from all sources.")

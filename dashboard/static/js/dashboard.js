@@ -1,11 +1,15 @@
 // BTC SCALPING AI - Dashboard Controller
 let priceChart = null;
 let currentTf = '15m';
+let currentSpotPrice = 0.0;
+let currentStrikePrice = 0.0;
+let targetCloseTimestampMs = 0;
 
 document.addEventListener('DOMContentLoaded', () => {
     initChart();
     fetchAllData();
-    setInterval(fetchAllData, 5000); // 5s polling
+    setInterval(fetchAllData, 3000); // 3s polling for real-time market data
+    setInterval(updateLiveCountdown, 1000); // 1s tick for countdown timer
 
     const triggerBtn = document.getElementById('btn-trigger-cycle');
     if (triggerBtn) {
@@ -51,6 +55,15 @@ function initChart() {
                     data: [],
                     borderColor: '#ff5252',
                     borderWidth: 1.2,
+                    pointRadius: 0,
+                    fill: false
+                },
+                {
+                    label: 'TARGET (To Beat)',
+                    data: [],
+                    borderColor: '#00e676',
+                    borderWidth: 2,
+                    borderDash: [6, 4],
                     pointRadius: 0,
                     fill: false
                 }
@@ -104,11 +117,51 @@ async function fetchOverview() {
     const data = await res.json();
 
     if (data.btc_price) {
+        currentSpotPrice = data.btc_price;
         document.getElementById('btc-live-price').textContent = '$' + data.btc_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('mkt-now-price').textContent = '$' + data.btc_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        updateDiffBadge();
     }
 
     if (data.latest_signal) {
         renderLatestSignal(data.latest_signal);
+    }
+}
+
+function updateDiffBadge() {
+    if (!currentSpotPrice || !currentStrikePrice) return;
+    const diff = currentSpotPrice - currentStrikePrice;
+    const pct = (diff / currentStrikePrice) * 100;
+    const sign = diff >= 0 ? '+' : '';
+    const badge = document.getElementById('mkt-diff-badge');
+    const nowEl = document.getElementById('mkt-now-price');
+
+    badge.textContent = `${sign}$${diff.toFixed(2)} (${sign}${pct.toFixed(3)}%)`;
+
+    if (diff >= 0) {
+        badge.style.color = 'var(--color-yes)';
+        nowEl.style.color = 'var(--color-yes)';
+    } else {
+        badge.style.color = 'var(--color-no)';
+        nowEl.style.color = 'var(--color-no)';
+    }
+}
+
+function updateLiveCountdown() {
+    if (!targetCloseTimestampMs) return;
+    const now = Date.now();
+    const remainingSec = Math.max(0, Math.floor((targetCloseTimestampMs - now) / 1000));
+    const mins = Math.floor(remainingSec / 60);
+    const secs = remainingSec % 60;
+    const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} ⏳`;
+    const el = document.getElementById('mkt-time-rem');
+    if (el) {
+        el.textContent = formatted;
+        if (remainingSec < 120) {
+            el.style.color = 'var(--color-no)';
+        } else {
+            el.style.color = 'var(--color-btc)';
+        }
     }
 }
 
@@ -140,6 +193,13 @@ async function fetchCandles() {
         priceChart.data.datasets[1].data = calculateEMAArray(closes, 9);
         priceChart.data.datasets[2].data = calculateEMAArray(closes, 21);
         priceChart.data.datasets[3].data = calculateEMAArray(closes, 50);
+
+        // Target / To Beat dashed reference line
+        if (currentStrikePrice > 0) {
+            priceChart.data.datasets[4].data = labels.map(() => currentStrikePrice);
+        } else {
+            priceChart.data.datasets[4].data = [];
+        }
 
         priceChart.update();
     }
@@ -185,12 +245,22 @@ async function fetchMarket() {
     const m = data.market;
 
     if (m) {
-        document.getElementById('mkt-title').textContent = m.title || 'BTC Event Contract';
+        document.getElementById('mkt-title').textContent = m.title || 'BTC 15 min';
         document.getElementById('mkt-ticker').textContent = m.ticker;
-        document.getElementById('mkt-strike').textContent = m.strike_price ? '$' + m.strike_price.toLocaleString() : 'TBD';
-        document.getElementById('mkt-time-rem').textContent = m.time_remaining_str || 'N/A';
-        document.getElementById('mkt-yes-price').textContent = m.yes_ask !== null ? `${m.yes_ask}¢` : '--';
-        document.getElementById('mkt-no-price').textContent = m.no_ask !== null ? `${m.no_ask}¢` : '--';
+
+        if (m.strike_price) {
+            currentStrikePrice = m.strike_price;
+            document.getElementById('mkt-to-beat').textContent = '$' + m.strike_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            updateDiffBadge();
+        }
+
+        if (m.close_time) {
+            targetCloseTimestampMs = new Date(m.close_time).getTime();
+            updateLiveCountdown();
+        }
+
+        document.getElementById('mkt-yes-price').textContent = m.yes_ask !== null ? `${Math.round(m.yes_ask)}¢` : '--';
+        document.getElementById('mkt-no-price').textContent = m.no_ask !== null ? `${Math.round(m.no_ask)}¢` : '--';
         document.getElementById('mkt-status').textContent = (m.status || 'ACTIVE').toUpperCase();
     } else {
         document.getElementById('mkt-title').textContent = 'Sin contrato activo actualmente';
