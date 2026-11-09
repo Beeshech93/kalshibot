@@ -19,7 +19,12 @@ class Database:
 
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # Fallback to /tmp if target directory is read-only (Vercel Lambda)
+            self.db_path = Path("/tmp/data/btc_scalping.db")
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_tables()
 
     def _get_connection(self) -> sqlite3.Connection:

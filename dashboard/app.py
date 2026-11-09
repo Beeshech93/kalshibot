@@ -18,10 +18,25 @@ from app.technical_analysis import TechnicalAnalysis
 
 logger = logging.getLogger("Dashboard")
 
+# Locate template and static directories safely across local and Vercel environments
+_base_path = Path(__file__).resolve().parent
+_template_path = _base_path / "templates"
+_static_path = _base_path / "static"
+
+if not _template_path.exists():
+    _alt_tmpl = _base_path.parent / "api" / "templates"
+    if _alt_tmpl.exists():
+        _template_path = _alt_tmpl
+
+if not _static_path.exists():
+    _alt_stat = _base_path.parent / "api" / "static"
+    if _alt_stat.exists():
+        _static_path = _alt_stat
+
 app = Flask(
     __name__,
-    template_folder=str(Path(__file__).parent / "templates"),
-    static_folder=str(Path(__file__).parent / "static")
+    template_folder=str(_template_path),
+    static_folder=str(_static_path)
 )
 
 # Shared instances

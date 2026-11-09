@@ -76,9 +76,26 @@ class Settings:
     log_level: str = os.getenv("LOG_LEVEL", "INFO").upper()
 
     def __post_init__(self):
-        # Ensure directories exist
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        # In serverless environments (like Vercel / AWS Lambda), the source directory is read-only
+        is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+        if is_serverless or not os.access(str(BASE_DIR), os.W_OK):
+            self.data_dir = Path("/tmp/data")
+            self.logs_dir = Path("/tmp/logs")
+            if not os.getenv("DATABASE_PATH"):
+                self.database_path = self.data_dir / "btc_scalping.db"
+
+        # Safely ensure directories exist without crashing on read-only file systems
+        try:
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            self.data_dir = Path("/tmp/data")
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            self.logs_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            self.logs_dir = Path("/tmp/logs")
+            self.logs_dir.mkdir(parents=True, exist_ok=True)
 
     def is_user_authorized(self, user_id: int) -> bool:
         """Checks if a Telegram user is authorized. If list is empty, allows chat_id or all."""
