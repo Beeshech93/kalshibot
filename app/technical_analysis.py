@@ -1,12 +1,16 @@
 """Technical Analysis module implementing EMA (9, 21, 50), RSI (14), MACD (12, 26, 9),
 Volume Confirmation & Anomaly detection across multiple timeframes (1m, 5m, 15m).
+Pure-Python implementation with optional pandas acceleration.
 """
 
 from dataclasses import dataclass
 import logging
-from typing import Any, Dict, List, Optional, Tuple
-import numpy as np
-import pandas as pd
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 logger = logging.getLogger("TechnicalAnalysis")
 
@@ -49,54 +53,89 @@ class IndicatorSnapshot:
         }
 
 
+def _to_list(series: Any) -> Tuple[List[float], bool]:
+    """Converts a pd.Series or list to List[float], returns (list, is_pandas)."""
+    if pd is not None and isinstance(series, pd.Series):
+        return [float(x) for x in series.tolist()], True
+    return [float(x) for x in series], False
+
+
 class TechnicalAnalysis:
     """Computes technical indicators and validates conditions on closed OHLCV candles."""
 
     @staticmethod
-    def calculate_ema(series: pd.Series, period: int) -> pd.Series:
+    def calculate_ema(series: Any, period: int) -> Any:
         """Calculates Exponential Moving Average."""
-        return series.ewm(span=period, adjust=False).mean()
+        vals, is_pd = _to_list(series)
+        if not vals:
+            res: List[float] = []
+        else:
+            alpha = 2.0 / (period + 1.0)
+            ema = [vals[0]]
+            for v in vals[1:]:
+                ema.append(alpha * v + (1.0 - alpha) * ema[-1])
+            res = ema
+
+        if is_pd and pd is not None:
+            return pd.Series(res, index=getattr(series, "index", None))
+        return res
 
     @staticmethod
-    def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    def calculate_rsi(series: Any, period: int = 14) -> Any:
         """Calculates Relative Strength Index (RSI 14) using Wilder's smoothing."""
-        delta = series.diff()
-        gain = delta.where(delta > 0, 0.0)
-        loss = -delta.where(delta < 0, 0.0)
+        vals, is_pd = _to_list(series)
+        n = len(vals)
+        if n == 0:
+            res: List[float] = []
+        elif n == 1:
+            res = [50.0]
+        else:
+            deltas = [vals[i] - vals[i - 1] for i in range(1, n)]
+            gains = [max(d, 0.0) for d in deltas]
+            losses = [max(-d, 0.0) for d in deltas]
 
-        # Wilder's exponential smoothing
-        avg_gain = gain.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-        avg_loss = loss.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+            alpha = 1.0 / period
+            avg_gain = [gains[0]]
+            avg_loss = [losses[0]]
+            for g, l in zip(gains[1:], losses[1:]):
+                avg_gain.append(alpha * g + (1.0 - alpha) * avg_gain[-1])
+                avg_loss.append(alpha * l + (1.0 - alpha) * avg_loss[-1])
 
-        # Handle zero loss (RSI = 100) and zero gain (RSI = 0)
-        rsi = pd.Series(index=series.index, dtype=float)
-        both_zero = (avg_gain == 0) & (avg_loss == 0)
-        zero_loss = (avg_loss == 0) & (avg_gain > 0)
-        zero_gain = (avg_gain == 0) & (avg_loss > 0)
-        normal = (avg_loss > 0) & (avg_gain > 0)
+            rsi_vals = [50.0]  # Point 0
+            for ag, al in zip(avg_gain, avg_loss):
+                if ag == 0 and al == 0:
+                    rsi_vals.append(50.0)
+                elif al == 0:
+                    rsi_vals.append(100.0)
+                elif ag == 0:
+                    rsi_vals.append(0.0)
+                else:
+                    rs = ag / al
+                    rsi_vals.append(100.0 - (100.0 / (1.0 + rs)))
+            res = rsi_vals
 
-        rsi[both_zero] = 50.0
-        rsi[zero_loss] = 100.0
-        rsi[zero_gain] = 0.0
-
-        rs = avg_gain[normal] / avg_loss[normal]
-        rsi[normal] = 100.0 - (100.0 / (1.0 + rs))
-
-        return rsi.fillna(50.0)
+        if is_pd and pd is not None:
+            return pd.Series(res, index=getattr(series, "index", None))
+        return res
 
     @staticmethod
     def calculate_macd(
-        series: pd.Series,
+        series: Any,
         fast_period: int = 12,
         slow_period: int = 26,
         signal_period: int = 9
-    ) -> Tuple[pd.Series, pd.Series, pd.Series]:
-        """Calculates MACD (12, 26, 9): macd_line, signal_line, histogram."""
-        fast_ema = series.ewm(span=fast_period, adjust=False).mean()
-        slow_ema = series.ewm(span=slow_period, adjust=False).mean()
-        macd_line = fast_ema - slow_ema
-        signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
-        histogram = macd_line - signal_line
+    ) -> Tuple[Any, Any, Any]:
+        """Calculates MACD: macd_line, signal_line, histogram."""
+        vals, is_pd = _to_list(series)
+        fast_ema = TechnicalAnalysis.calculate_ema(vals, fast_period)
+        slow_ema = TechnicalAnalysis.calculate_ema(vals, slow_period)
+        macd_line = [f - s for f, s in zip(fast_ema, slow_ema)]
+        signal_line = TechnicalAnalysis.calculate_ema(macd_line, signal_period)
+        histogram = [m - s for m, s in zip(macd_line, signal_line)]
+
+        if is_pd and pd is not None:
+            idx = getattr(series, "index", None)
+            return pd.Series(macd_line, index=idx), pd.Series(signal_line, index=idx), pd.Series(histogram, index=idx)
         return macd_line, signal_line, histogram
 
     @classmethod
@@ -106,16 +145,21 @@ class TechnicalAnalysis:
             logger.warning(f"Insufficient candles ({len(candles) if candles else 0}) for {timeframe} analysis. Need >= 30.")
             return None
 
-        df = pd.DataFrame(candles)
-        for col in ["open", "high", "low", "close", "volume"]:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        # Clean candles
+        valid_candles = []
+        for c in candles:
+            try:
+                cl = float(c["close"])
+                vo = float(c.get("volume", 0.0))
+                valid_candles.append((cl, vo))
+            except (ValueError, KeyError, TypeError):
+                continue
 
-        df = df.dropna().reset_index(drop=True)
-        if len(df) < 30:
+        if len(valid_candles) < 30:
             return None
 
-        close = df["close"]
-        vol = df["volume"]
+        close = [c[0] for c in valid_candles]
+        vol = [c[1] for c in valid_candles]
 
         # EMAs
         ema9_s = cls.calculate_ema(close, 9)
@@ -126,54 +170,46 @@ class TechnicalAnalysis:
         rsi_s = cls.calculate_rsi(close, 14)
 
         # MACD
-        fast_ema = close.ewm(span=12, adjust=False).mean()
-        slow_ema = close.ewm(span=26, adjust=False).mean()
-        macd_line_s = fast_ema - slow_ema
-        signal_line_s = macd_line_s.ewm(span=9, adjust=False).mean()
-        hist_s = macd_line_s - signal_line_s
+        macd_line_s, signal_line_s, hist_s = cls.calculate_macd(close, 12, 26, 9)
 
-        # Volume
-        avg_vol_20 = vol.rolling(window=min(20, len(vol)), min_periods=5).mean()
+        # Volume SMA 20
+        v_win = vol[-20:] if len(vol) >= 20 else vol
+        avg_vol = sum(v_win) / len(v_win) if v_win else 1.0
 
-        # Latest closed values
-        c_price = float(close.iloc[-1])
-        ema9 = float(ema9_s.iloc[-1])
-        ema21 = float(ema21_s.iloc[-1])
-        ema50 = float(ema50_s.iloc[-1]) if len(close) >= 50 else float(ema21)
-        rsi = float(rsi_s.iloc[-1])
-        macd_l = float(macd_line_s.iloc[-1])
-        macd_sig = float(signal_line_s.iloc[-1])
-        macd_h = float(hist_s.iloc[-1])
-        curr_vol = float(vol.iloc[-1])
-        avg_vol = float(avg_vol_20.iloc[-1]) if not np.isnan(avg_vol_20.iloc[-1]) else curr_vol
+        # Latest values
+        c_price = close[-1]
+        ema9 = ema9_s[-1]
+        ema21 = ema21_s[-1]
+        ema50 = ema50_s[-1]
+        rsi = rsi_s[-1]
+        macd_line = macd_line_s[-1]
+        macd_signal = signal_line_s[-1]
+        macd_hist = hist_s[-1]
+        last_vol = vol[-1]
 
-        # Volume flags
-        volume_confirmed = curr_vol >= avg_vol
-        volume_abnormal = curr_vol >= (avg_vol * 2.0)
-
-        # Trend Determination
-        if ema9 > ema21 and ema21 > ema50 and c_price > ema9:
+        # Trend logic
+        if ema9 > ema21 > ema50:
             trend = "BULLISH"
-        elif ema9 < ema21 and ema21 < ema50 and c_price < ema9:
+        elif ema9 < ema21 < ema50:
             trend = "BEARISH"
-        elif ema9 > ema21:
+        elif ema9 > ema50:
             trend = "MILD_BULLISH"
-        elif ema9 < ema21:
+        elif ema9 < ema50:
             trend = "MILD_BEARISH"
         else:
             trend = "NEUTRAL"
 
-        # Momentum Determination
-        if macd_h > 0 and macd_l > macd_sig and rsi > 55:
-            momentum = "STRONG_UP"
-        elif macd_h > 0 or (rsi > 50 and macd_l > macd_sig):
-            momentum = "WEAK_UP"
-        elif macd_h < 0 and macd_l < macd_sig and rsi < 45:
-            momentum = "STRONG_DOWN"
-        elif macd_h < 0 or (rsi < 50 and macd_l < macd_sig):
-            momentum = "WEAK_DOWN"
+        # Momentum logic
+        if macd_hist > 0 and rsi > 55:
+            momentum = "STRONG_UP" if rsi > 65 else "WEAK_UP"
+        elif macd_hist < 0 and rsi < 45:
+            momentum = "STRONG_DOWN" if rsi < 35 else "WEAK_DOWN"
         else:
             momentum = "NEUTRAL"
+
+        # Volume checks
+        volume_confirmed = last_vol >= (avg_vol * 0.95)
+        volume_abnormal = last_vol >= (avg_vol * 2.0)
 
         return IndicatorSnapshot(
             timeframe=timeframe,
@@ -182,10 +218,10 @@ class TechnicalAnalysis:
             ema_21=ema21,
             ema_50=ema50,
             rsi_14=rsi,
-            macd_line=macd_l,
-            macd_signal=macd_sig,
-            macd_histogram=macd_h,
-            volume=curr_vol,
+            macd_line=macd_line,
+            macd_signal=macd_signal,
+            macd_histogram=macd_hist,
+            volume=last_vol,
             avg_volume=avg_vol,
             volume_confirmed=volume_confirmed,
             volume_abnormal=volume_abnormal,
@@ -194,12 +230,10 @@ class TechnicalAnalysis:
         )
 
     @classmethod
-    def analyze_multi_timeframe(
-        cls,
-        mtf_candles: Dict[str, List[Dict[str, Any]]]
-    ) -> Dict[str, Optional[IndicatorSnapshot]]:
-        """Analyzes 1m, 5m, and 15m closed candle sets."""
-        return {
-            tf: cls.analyze_candles(candles, tf)
-            for tf, candles in mtf_candles.items()
-        }
+    def analyze_multi_timeframe(cls, mtf_candles: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Optional[IndicatorSnapshot]]:
+        """Analyzes 1m, 5m, 15m closed candles."""
+        results: Dict[str, Optional[IndicatorSnapshot]] = {}
+        for tf in ["1m", "5m", "15m"]:
+            candles = mtf_candles.get(tf, [])
+            results[tf] = cls.analyze_candles(candles, tf)
+        return results
