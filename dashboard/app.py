@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
+import traceback
 from flask import Flask, jsonify, render_template, request
 
 from app.config import settings
@@ -148,6 +149,17 @@ def api_trigger_cycle():
         return jsonify({"status": "SUCCESS", "message": "Ciclo de análisis ejecutado exitosamente."})
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)}), 500
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(e):
+    """Catches any unhandled exceptions to prevent Vercel 500 crashes."""
+    logger.exception(f"Unhandled exception in dashboard: {e}")
+    return jsonify({
+        "status": "ERROR",
+        "error": str(e),
+        "traceback": traceback.format_exc()
+    }), 500
 
 
 def run_dashboard():

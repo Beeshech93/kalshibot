@@ -35,6 +35,16 @@ def _get_int_list(env_var: str) -> List[int]:
     return result
 
 
+def _get_int(env_var: str, default: int) -> int:
+    val = os.getenv(env_var)
+    if val is None or not str(val).strip():
+        return default
+    try:
+        return int(str(val).strip())
+    except ValueError:
+        return default
+
+
 @dataclass
 class Settings:
     # Kalshi Configuration
@@ -56,20 +66,20 @@ class Settings:
     )
 
     # Core Parameters
-    analysis_interval_minutes: int = int(os.getenv("ANALYSIS_INTERVAL_MINUTES", "15"))
-    signal_window_minutes: int = int(os.getenv("SIGNAL_WINDOW_MINUTES", "6"))
-    scan_interval_seconds: int = int(os.getenv("SCAN_INTERVAL_SECONDS", "15"))
-    min_confidence_score: int = int(os.getenv("MIN_CONFIDENCE_SCORE", "60"))
+    analysis_interval_minutes: int = field(default_factory=lambda: _get_int("ANALYSIS_INTERVAL_MINUTES", 15))
+    signal_window_minutes: int = field(default_factory=lambda: _get_int("SIGNAL_WINDOW_MINUTES", 6))
+    scan_interval_seconds: int = field(default_factory=lambda: _get_int("SCAN_INTERVAL_SECONDS", 15))
+    min_confidence_score: int = field(default_factory=lambda: _get_int("MIN_CONFIDENCE_SCORE", 60))
     mode: str = os.getenv("MODE", "SOLO_SEÑALES")
 
     # Database & Paths
-    database_path: Path = BASE_DIR / os.getenv("DATABASE_PATH", "data/btc_scalping.db")
-    logs_dir: Path = BASE_DIR / "logs"
-    data_dir: Path = BASE_DIR / "data"
+    database_path: Path = field(default_factory=lambda: BASE_DIR / os.getenv("DATABASE_PATH", "data/btc_scalping.db"))
+    logs_dir: Path = field(default_factory=lambda: BASE_DIR / "logs")
+    data_dir: Path = field(default_factory=lambda: BASE_DIR / "data")
 
     # Dashboard
     dashboard_host: str = os.getenv("DASHBOARD_HOST", "127.0.0.1")
-    dashboard_port: int = int(os.getenv("DASHBOARD_PORT", "8080"))
+    dashboard_port: int = field(default_factory=lambda: _get_int("DASHBOARD_PORT", 8080))
     dashboard_debug: bool = _get_bool("DASHBOARD_DEBUG", False)
 
     # Logging
